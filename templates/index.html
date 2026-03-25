@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Texting Analyzed Like It's Chess</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .eval-badge { display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: 4px; font-size: 0.85rem; }
+        .eval-brilliant { background: #1abc9c; color: #fff; }
+        .eval-great_find { background: #1abc9c; color: #fff; }
+        .eval-best { background: #1abc9c; color: #fff; }
+        .eval-excellent { background: #27ae60; color: #fff; }
+        .eval-good { background: #3498db; color: #fff; }
+        .eval-book { background: #7f8c8d; color: #fff; }
+        .eval-inaccuracy { background: #f1c40f; color: #333; }
+        .eval-mistake { background: #e67e22; color: #fff; }
+        .eval-blunder { background: #e74c3c; color: #fff; }
+        .eval-missed_win { background: #9b59b6; color: #fff; }
+        #dropZone { cursor: pointer; min-height: 200px; display: flex; flex-direction: column; justify-content: center; border: 2px dashed #dee2e6; transition: border-color 0.2s; }
+        #dropZone:hover { border-color: #0d6efd; }
+        #dropZone.drag-over { border-color: #0d6efd; background: #f8f9fa; }
+        .slice-item { cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
+        .slice-item:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .slice-item.active { border: 3px solid #0d6efd; }
+        #replayContainer { position: relative; }
+        #replayImage { max-width: 100%; border-radius: 8px; }
+        .replay-progress { height: 4px; transition: width 0.3s; }
+        
+        .append-container { position: relative; overflow: hidden; }
+        .append-image { display: block; max-width: 100%; border-radius: 8px; }
+        .append-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; opacity: 0; transition: opacity 0.1s; }
+        .append-overlay.brilliant { background: rgba(26, 188, 156, 0.5); }
+        .append-overlay.great_find { background: rgba(26, 188, 156, 0.5); }
+        .append-overlay.best { background: rgba(26, 188, 156, 0.5); }
+        .append-overlay.excellent { background: rgba(39, 174, 96, 0.5); }
+        .append-overlay.good { background: rgba(52, 152, 219, 0.5); }
+        .append-overlay.book { background: rgba(127, 140, 141, 0.5); }
+        .append-overlay.inaccuracy { background: rgba(241, 196, 15, 0.5); }
+        .append-overlay.mistake { background: rgba(230, 126, 34, 0.5); }
+        .append-overlay.blunder { background: rgba(231, 76, 60, 0.5); }
+        .append-overlay.missed_win { background: rgba(155, 89, 182, 0.5); }
+        
+        .flying-icon { position: fixed; width: 80px; height: 80px; pointer-events: none; z-index: 9999; transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .flying-icon.pulse { animation: pulse 0.5s ease-out; }
+        
+        @keyframes pulse {
+            0% { transform: scale(1) translate(-50%, -50%); }
+            50% { transform: scale(1.5) translate(-50%, -50%); }
+            100% { transform: scale(1) translate(-50%, -50%); }
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .slide-in { animation: slideIn 0.4s ease-out forwards; }
+        
+        .analysis-badge { position: absolute; top: 10px; right: 10px; background: white; padding: 8px 12px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 8px; }
+        .analysis-badge .eval-icon { width: 32px; height: 32px; }
+        .analysis-badge .eval-text { font-weight: bold; font-size: 0.9rem; }
+        
+        .thumb-item { cursor: pointer; transition: all 0.2s; border: 2px solid transparent; }
+        .thumb-item:hover { border-color: #0d6efd; }
+        .thumb-item.active { border-color: #0d6efd; box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25); }
+        
+        .semi-annotated-icon { width: 48px; height: 48px; }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <h1 class="text-center mb-4">Texting Analyzed Like It's Chess</h1>
+        
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Upload Conversation Screenshot(s)</span>
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="form-check mb-0" title="Analyze all images as one continuous conversation">
+                                <input class="form-check-input" type="checkbox" id="concatenatedMode">
+                                <label class="form-check-label" for="concatenatedMode">Concatenate</label>
+                            </div>
+                            <div class="form-check mb-0" title="Don't send images to model (OCR only)">
+                                <input class="form-check-input" type="checkbox" id="noImageMode">
+                                <label class="form-check-label" for="noImageMode">OCR Only</label>
+                            </div>
+                            <div class="form-check mb-0" title="Analyze every line/message in detail">
+                                <input class="form-check-input" type="checkbox" id="denseMode">
+                                <label class="form-check-label" for="denseMode">Dense Analysis</label>
+                            </div>
+                            <button class="btn btn-primary btn-sm" id="analyzeBtn">Analyze</button>
+                        </div>
+                    </div>
+                    <div class="card-body text-center" id="dropZone">
+                        <div id="previewArea" class="d-none mb-3">
+                            <div id="previewContainer" class="d-flex flex-wrap gap-2 justify-content-center"></div>
+                        </div>
+                        <div id="uploadPrompt">
+                            <p class="text-muted mb-0">Drag & drop image(s) here or click to upload (multiple supported)</p>
+                            <small class="text-muted">Concatenate: one long thread | OCR Only: faster, no image | Dense: analyze every line</small>
+                        </div>
+                        <input type="file" class="d-none" id="fileInput" accept="image/*" multiple>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row justify-content-center mt-4 d-none" id="analysisSection">
+            <div class="col-lg-10">
+                <ul class="nav nav-tabs mb-3" id="viewTabs">
+                    <li class="nav-item">
+                        <button class="nav-link active" data-view="append">Append Replay</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-view="semi">Semi-Annotated</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-view="full">Full Annotated</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-view="interactive">Interactive</button>
+                    </li>
+                </ul>
+
+                <div id="appendView">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>Append Replay</span>
+                            <div>
+                                <button class="btn btn-sm btn-primary me-2" id="startAppendBtn">Start</button>
+                                <button class="btn btn-sm btn-secondary" id="stopAppendBtn" disabled>Stop</button>
+                            </div>
+                        </div>
+                        <div class="card-body text-center">
+                            <div class="append-container" id="appendContainer">
+                                <img id="appendImage" class="append-image">
+                                <div class="append-overlay" id="appendOverlay"></div>
+                            </div>
+                            <div class="progress mt-3">
+                                <div class="progress-bar" id="appendProgress" style="width: 0%"></div>
+                            </div>
+                            <div id="appendExplanation" class="mt-3 text-start"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="semiView" class="d-none">
+                    <div class="card">
+                        <div class="card-header">Semi-Annotated (Icons Only)</div>
+                        <div class="card-body text-center">
+                            <div id="semiContainer" class="position-relative d-inline-block"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="fullView" class="d-none">
+                    <div class="card">
+                        <div class="card-header">Full Annotated</div>
+                        <div class="card-body text-center">
+                            <img id="fullAnnotatedImage" class="img-fluid rounded">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="interactiveView" class="d-none">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header">Current Message</div>
+                                <div class="card-body text-center">
+                                    <img id="interactiveSlice" class="img-fluid rounded" style="max-height: 600px;">
+                                    <div id="interactiveExplanation" class="mt-3 text-start"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span>Messages</span>
+                                    <button class="btn btn-sm btn-outline-primary" id="playAllBtn">Play All</button>
+                                </div>
+                                <div class="card-body p-2" id="sliceList" style="max-height: 500px; overflow-y: auto;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="multiImageNav" class="d-none mt-3">
+                    <div class="card">
+                        <div class="card-header">Images</div>
+                        <div class="card-body">
+                            <div id="imageThumbs" class="d-flex gap-2 flex-wrap"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row justify-content-center mt-4">
+            <div class="col-lg-10">
+                <h5 class="text-center mb-3">Evaluation Legend</h5>
+                <div class="d-flex flex-wrap justify-content-center gap-2">
+                    <span class="eval-badge eval-brilliant"><img src="/static/images/brilliant.svg" height="18"> Brilliant</span>
+                    <span class="eval-badge eval-great_find"><img src="/static/images/great_find.svg" height="18"> Great Find</span>
+                    <span class="eval-badge eval-best"><img src="/static/images/best.svg" height="18"> Best</span>
+                    <span class="eval-badge eval-excellent"><img src="/static/images/excellent.svg" height="18"> Excellent</span>
+                    <span class="eval-badge eval-good"><img src="/static/images/good.svg" height="18"> Good</span>
+                    <span class="eval-badge eval-book"><img src="/static/images/book.svg" height="18"> Book</span>
+                    <span class="eval-badge eval-inaccuracy"><img src="/static/images/inaccuracy.svg" height="18"> Inaccuracy</span>
+                    <span class="eval-badge eval-mistake"><img src="/static/images/mistake.svg" height="18"> Mistake</span>
+                    <span class="eval-badge eval-blunder"><img src="/static/images/blunder.svg" height="18"> Blunder</span>
+                    <span class="eval-badge eval-missed_win"><img src="/static/images/missed_win.svg" height="18"> Missed Win</span>
+                </div>
+                <h6 class="text-center mt-3 mb-2">Notable Icons</h6>
+                <div class="d-flex flex-wrap justify-content-center gap-2">
+                    <span class="eval-badge eval-winner"><img src="/static/images/winner.svg" height="18"> Winner</span>
+                    <span class="eval-badge eval-threat"><img src="/static/images/threat.svg" height="18"> Threat</span>
+                    <span class="eval-badge eval-take_back"><img src="/static/images/take_back.svg" height="18"> Take Back</span>
+                    <span class="eval-badge eval-sharp"><img src="/static/images/sharp.svg" height="18"> Sharp</span>
+                    <span class="eval-badge eval-mate"><img src="/static/images/mate.svg" height="18"> Mate</span>
+                    <span class="eval-badge eval-forced"><img src="/static/images/forced.svg" height="18"> Forced</span>
+                    <span class="eval-badge eval-free_piece"><img src="/static/images/free_piece.svg" height="18"> Free Piece</span>
+                    <span class="eval-badge eval-fast_win"><img src="/static/images/fast_win.svg" height="18"> Fast Win</span>
+                    <span class="eval-badge eval-critical"><img src="/static/images/critical.svg" height="18"> Critical</span>
+                    <span class="eval-badge eval-alternative"><img src="/static/images/alternative.svg" height="18"> Alternative</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/script.js"></script>
+</body>
+</html>
