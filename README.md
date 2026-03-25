@@ -1,7 +1,6 @@
 # textanalysis
 
-A Flask web application that analyzes texting conversations (and other text-dense screenshots) using chess-style move evaluations.
--# Heavily vibe-coded so don't hope for the best readability
+A Flask web application that analyzes texting conversations (and other text-dense screenshots) using chess-style move evaluations, Heavily vibe-coded so don't hope for the best readability
 
 ## Installation
 
